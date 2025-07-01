@@ -1,0 +1,1028 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String?
+  isGoogleUser    Boolean   @default(false)
+  firstName       String
+  middleName      String?
+  lastName        String
+  degreeProgramme String?
+  skills          String[]  @default([])
+  interests       String[]  @default([])
+  profilePicture  String?
+  bio             String?
+  phoneNumber     String?
+  linkedinProfile String?
+  githubProfile   String?
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  role            Role
+  createdAt       DateTime  @default(now())
+  lastLoginAt     DateTime?
+  isActive        Boolean   @default(true)
+
+  // Relations
+  accounts Account[]
+  sessions Session[]
+
+  // Hub Relations
+  hubs                  HubMember[]
+  hubMembershipRequests HubMembershipRequest[]
+
+  // Event Relations
+  eventRegistrations EventRegistration[]
+  attendanceBadges   EventAttendanceBadge[]
+  eventFeedbacks     EventFeedback[]
+  createdEvents      Event[]                @relation("EventCreator")
+
+  // Project Relations
+  projectMembers       ProjectMember[]
+  projectJoinRequests  ProjectJoinRequest[]
+  supervisedProjects   Project[]            @relation("SupervisorProjects")
+  tasks                Task[]               @relation("TaskAssignee")
+  progressReports      ProgressReport[]
+  uploadedProjectFiles ProjectFile[]
+  projectAnnouncements Announcement[]
+  projectDiscussions   Discussion[]
+  projectSuggestions   ProjectSuggestion[]  @relation("UserProjectSuggestions")
+
+  // Programme Relations
+  programmes            ProgrammeMember[]
+  programmeJoinRequests ProgrammeJoinRequest[]
+  supervisedProgrammes  Programme[]            @relation("SupervisorProgrammes")
+
+  // News Relations
+  authoredNews News[]
+  newsComments NewsComment[]
+  newsLikes    NewsLike[]
+
+  // Notification Relations
+  notifications Notification[]
+
+  // Analytics Relations
+  userAnalytics UserAnalytics?
+
+  // Partnership Relations (for Hub Supervisors)
+  partnerships         Partnership[]
+  fundingOpportunities FundingOpportunity[]
+
+  //Audit logs relations
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@index([id])
+  @@index([role])
+  @@index([createdAt])
+  @@index([isActive])
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  color       String?
+  hubs        Hub[]   @relation("HubCategories")
+
+  @@index([name])
+}
+
+model Hub {
+  id              String     @id @default(uuid())
+  name            String     @unique
+  description     String
+  logo            String?
+  coverImage      String?
+  categories      Category[] @relation("HubCategories")
+  cardBio         String?
+  vision          String?
+  mission         String?
+  objectives      String[]   @default([])
+  contactEmail    String?
+  website         String?
+  socialLinks     Json? // {twitter, linkedin, facebook, etc}
+  location        String?
+  establishedDate DateTime?
+  updatedAt       DateTime   @updatedAt
+  updatedBy       String?
+  deletedAt       DateTime?
+  deletionReason  String?
+  createdAt       DateTime   @default(now())
+  isActive        Boolean    @default(true)
+
+  // Relations
+  events                Event[]
+  members               HubMember[]
+  news                  News[]
+  programmes            Programme[]
+  projects              Project[]
+  membershipRequests    HubMembershipRequest[]
+  projectJoinRequests   ProjectJoinRequest[]
+  programmeJoinRequests ProgrammeJoinRequest[]
+
+  // Analytics
+  hubAnalytics HubAnalytics?
+
+  // Partnership Relations (for Hub Supervisors)
+  partnerships         Partnership[]
+  fundingOpportunities FundingOpportunity[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model HubMember {
+  id        String    @id @default(uuid())
+  userId    String
+  hubId     String
+  role      SubRole
+  joinedAt  DateTime  @default(now())
+  deletedAt DateTime?
+  isActive  Boolean   @default(true)
+
+  // Relations
+  hub            Hub             @relation(fields: [hubId], references: [id])
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectMembers ProjectMember[]
+
+  @@unique([userId, hubId])
+  @@index([userId])
+  @@index([hubId])
+  @@index([role])
+}
+
+model Event {
+  id                String     @id @default(uuid())
+  title             String
+  description       String
+  coverImage        String?
+  visibility        Visibility @default(PUBLIC)
+  capacity          Int?
+  eventType         String
+  venue             String?
+  venueAddress      String?
+  isOnline          Boolean    @default(false)
+  meetingLink       String?
+  requirements      String[]   @default([])
+  agenda            Json? // Structured agenda
+  speakers          Json[]     @default([]) // Speaker information
+  tags              String[]   @default([])
+  updatedAt         DateTime   @updatedAt
+  verifiedAttendees String[]   @default([])
+  approvedAttendees String[]   @default([])
+
+  // Relations
+  attendanceBadges EventAttendanceBadge[]
+  createdBy        String
+  creator          User                   @relation("EventCreator", fields: [createdBy], references: [id])
+  createdAt        DateTime               @default(now())
+  deletedAt        DateTime?
+  hubId            String
+  hub              Hub                    @relation(fields: [hubId], references: [id])
+  publishStatus    PublishStatus          @default(DRAFT)
+  scheduledAt      DateTime?
+  startDate        DateTime
+  endDate          DateTime?
+  registrations    EventRegistration[]
+  eventFeedbacks   EventFeedback[]
+
+  // Media and Files
+  media Media[]
+
+  // Real-time features (Firebase)
+  discussionId String? // Firebase collection ID
+
+  @@index([hubId])
+  @@index([createdBy])
+  @@index([publishStatus])
+  @@index([startDate])
+  @@index([eventType])
+}
+
+model EventAttendanceBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  eventId   String
+  badge     String
+  score     Float
+  awardedAt DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+}
+
+model Programme {
+  id                  String        @id @default(uuid())
+  title               String
+  description         String
+  coverImage          String?
+  curriculum          Json? // Structured curriculum
+  prerequisites       String[]      @default([])
+  learningOutcomes    String[]      @default([])
+  duration            String? // e.g., "6 months", "1 year"
+  certificationType   String? // e.g., "Certificate", "Diploma"
+  maxParticipants     Int?
+  applicationDeadline DateTime?
+  createdAt           DateTime      @default(now())
+  deletedAt           DateTime?
+  hubId               String
+  publishStatus       PublishStatus @default(DRAFT)
+  scheduledAt         DateTime?
+  startDate           DateTime?
+  endDate             DateTime?
+
+  // Relations
+  hub                   Hub                    @relation(fields: [hubId], references: [id])
+  members               ProgrammeMember[]
+  supervisors           User[]                 @relation("SupervisorProgrammes")
+  programmeJoinRequests ProgrammeJoinRequest[]
+
+  // Media and Files
+  media Media[]
+
+  // Real-time features (Firebase)
+  discussionId String? // Firebase collection ID
+
+  @@index([hubId])
+  @@index([publishStatus])
+  @@index([startDate])
+}
+
+model ProgrammeMember {
+  id          String           @id @default(uuid())
+  userId      String
+  programmeId String
+  role        SubRole          @default(MEMBER)
+  deletedAt   DateTime?
+  status      MembershipStatus @default(ACTIVE)
+  joinedAt    DateTime         @default(now())
+  progress    Float            @default(0.0) // 0-100 percentage
+
+  // Relations
+  programme Programme @relation(fields: [programmeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programmeId])
+  @@index([userId])
+  @@index([programmeId])
+  @@index([status])
+}
+
+model Project {
+  id             String        @id @default(uuid())
+  title          String
+  description    String
+  coverImage     String?
+  createdAt      DateTime      @default(now())
+  hubId          String
+  publishStatus  PublishStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  startDate      DateTime?
+  endDate        DateTime?
+  deletedAt      DateTime?
+  visibility     Visibility    @default(PUBLIC)
+  objectives     String?
+  skills         String[]      @default([])
+  technologies   String[]      @default([])
+  budget         Float?
+  fundingSource  String?
+  status         ProjectStatus @default(PLANNING)
+  priority       Priority      @default(MEDIUM)
+  completionRate Float         @default(0.0)
+
+  // Relations
+  progressReports     ProgressReport[]
+  hub                 Hub                  @relation(fields: [hubId], references: [id])
+  members             ProjectMember[]
+  supervisors         User[]               @relation("SupervisorProjects")
+  projectJoinRequests ProjectJoinRequest[]
+  tasks               Task[]
+  projectFiles        ProjectFile[]
+  announcements       Announcement[]
+  discussions         Discussion[]
+  projectAnalytics    ProjectAnalytics?
+  projectSuggestions  ProjectSuggestion[]  @relation("ProjectSuggestions")
+
+  // Media and Files
+  media Media[]
+
+  // Real-time features (Firebase)
+  discussionId String? // Firebase collection ID
+
+  @@index([hubId])
+  @@index([publishStatus])
+  @@index([status])
+  @@index([priority])
+}
+
+model ProjectMember {
+  id           String    @id @default(uuid())
+  userId       String
+  projectId    String
+  hubMemberId  String? // New field
+  role         String    @default("MEMBER")
+  joinedAt     DateTime  @default(now())
+  deletedAt    DateTime?
+  contribution String? // Description of their contribution
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hubMember HubMember? @relation(fields: [hubMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([hubMemberId])
+}
+
+model Task {
+  id             String     @id @default(uuid())
+  projectId      String
+  title          String
+  description    String?
+  dueDate        DateTime?
+  assigneeId     String?
+  status         TaskStatus @default(TODO)
+  priority       Priority   @default(MEDIUM)
+  estimatedHours Float?
+  actualHours    Float?
+  tags           String[]   @default([])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  // Relations
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  // Dependencies
+  dependencies TaskDependency[] @relation("TaskDependencies")
+  dependents   TaskDependency[] @relation("DependentTasks")
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model TaskDependency {
+  id          String @id @default(uuid())
+  taskId      String
+  dependsOnId String
+
+  task      Task @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn Task @relation("DependentTasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+}
+
+model ProgressReport {
+  id          String    @id @default(uuid())
+  projectId   String
+  userId      String
+  title       String
+  content     String
+  attachments String[]  @default([])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model News {
+  id            String        @id @default(uuid())
+  title         String
+  excerpt       String
+  content       String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  authorId      String
+  hubId         String?
+  visibility    Visibility    @default(PUBLIC)
+  image         String?
+  category      String
+  tags          String[]      @default([])
+  featured      Boolean       @default(false)
+  publishStatus PublishStatus @default(DRAFT)
+  publishedAt   DateTime?
+
+  // Relations
+  author   User          @relation(fields: [authorId], references: [id])
+  hub      Hub?          @relation(fields: [hubId], references: [id])
+  comments NewsComment[]
+  likes    NewsLike[]
+
+  // Media
+  media Media[]
+
+  // Real-time features (Firebase)
+  likesCount    Int @default(0)
+  commentsCount Int @default(0)
+
+  @@index([authorId])
+  @@index([hubId])
+  @@index([publishStatus])
+  @@index([createdAt])
+  @@index([featured])
+}
+
+model NewsComment {
+  id        String    @id @default(uuid())
+  newsId    String
+  userId    String
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([newsId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model NewsLike {
+  id        String   @id @default(uuid())
+  newsId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, userId])
+  @@index([newsId])
+  @@index([userId])
+}
+
+model Media {
+  id         String    @id @default(uuid())
+  url        String
+  fileName   String
+  type       MediaType
+  size       Int
+  uploadedBy String
+  uploadedAt DateTime  @default(now())
+  deletedAt  DateTime?
+
+  // Polymorphic relations
+  eventId     String?
+  projectId   String?
+  programmeId String?
+  newsId      String?
+  hubId       String?
+
+  // Relations
+  event     Event?     @relation(fields: [eventId], references: [id])
+  project   Project?   @relation(fields: [projectId], references: [id])
+  programme Programme? @relation(fields: [programmeId], references: [id])
+  news      News?      @relation(fields: [newsId], references: [id])
+
+  @@index([eventId])
+  @@index([projectId])
+  @@index([programmeId])
+  @@index([newsId])
+  @@index([type])
+}
+
+// Request Models
+model HubMembershipRequest {
+  id             String        @id @default(uuid())
+  userId         String
+  hubId          String
+  status         RequestStatus @default(PENDING)
+  message        String?
+  requestedAt    DateTime      @default(now())
+  responseReason String?
+  respondedAt    DateTime?
+  respondedBy    String?
+  deletedAt      DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hub  Hub  @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hubId])
+  @@index([userId])
+  @@index([hubId])
+  @@index([status])
+}
+
+model EventRegistration {
+  id             String        @id @default(uuid())
+  userId         String
+  eventId        String
+  status         RequestStatus @default(PENDING)
+  registeredAt   DateTime      @default(now())
+  responseReason String?
+  respondedAt    DateTime?
+  respondedBy    String?
+  deletedAt      DateTime?
+  attended       Boolean       @default(false)
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+}
+
+model ProjectJoinRequest {
+  id             String        @id @default(uuid())
+  userId         String
+  projectId      String
+  hubId          String
+  status         RequestStatus @default(PENDING)
+  message        String?
+  requestedAt    DateTime      @default(now())
+  responseReason String?
+  respondedAt    DateTime?
+  respondedBy    String?
+  deletedAt      DateTime?
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hub     Hub     @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([hubId])
+  @@index([status])
+}
+
+model ProgrammeJoinRequest {
+  id             String        @id @default(uuid())
+  userId         String
+  programmeId    String
+  hubId          String
+  status         RequestStatus @default(PENDING)
+  message        String?
+  requestedAt    DateTime      @default(now())
+  responseReason String?
+  respondedAt    DateTime?
+  respondedBy    String?
+  deletedAt      DateTime?
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programme Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  hub       Hub       @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programmeId])
+  @@index([userId])
+  @@index([programmeId])
+  @@index([hubId])
+  @@index([status])
+}
+
+model EventFeedback {
+  id             String   @id @default(uuid())
+  eventId        String
+  userId         String
+  rating         Float // 1-5 stars
+  content        String?
+  suggestions    String?
+  wouldRecommend Boolean?
+  createdAt      DateTime @default(now())
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([rating])
+}
+
+model ProjectFile {
+  id          String    @id @default(uuid())
+  projectId   String
+  url         String
+  fileName    String
+  type        String
+  size        Int
+  uploadedBy  String
+  uploadedAt  DateTime  @default(now())
+  deletedAt   DateTime?
+  version     String    @default("1.0")
+  description String?
+
+  // Relations
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([projectId])
+  @@index([uploadedBy])
+  @@index([type])
+}
+
+model Announcement {
+  id        String    @id @default(uuid())
+  projectId String
+  title     String
+  content   String
+  priority  Priority  @default(MEDIUM)
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@index([projectId])
+  @@index([createdBy])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model Discussion {
+  id        String    @id @default(uuid())
+  projectId String
+  title     String
+  content   String
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation(fields: [createdBy], references: [id])
+
+  @@index([projectId])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model ProjectSuggestion {
+  id        String         @id @default(uuid())
+  projectId String
+  userId    String
+  title     String
+  content   String
+  type      SuggestionType @default(IMPROVEMENT)
+  status    RequestStatus  @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, name: "ProjectSuggestions")
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade, name: "UserProjectSuggestions")
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+
+// Analytics Models
+model UserAnalytics {
+  id                  String    @id @default(uuid())
+  userId              String    @unique
+  loginCount          Int       @default(0)
+  lastLoginAt         DateTime?
+  totalTimeSpent      Int       @default(0) // in minutes
+  hubsJoined          Int       @default(0)
+  projectsJoined      Int       @default(0)
+  eventsAttended      Int       @default(0)
+  programmesCompleted Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model HubAnalytics {
+  id                String   @id @default(uuid())
+  hubId             String   @unique
+  totalMembers      Int      @default(0)
+  activeMembers     Int      @default(0)
+  totalProjects     Int      @default(0)
+  completedProjects Int      @default(0)
+  totalEvents       Int      @default(0)
+  totalProgrammes   Int      @default(0)
+  engagementRate    Float    @default(0.0)
+  growthRate        Float    @default(0.0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  hub Hub @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@index([hubId])
+}
+
+model ProjectAnalytics {
+  id                 String   @id @default(uuid())
+  projectId          String   @unique
+  taskCompletionRate Float    @default(0.0)
+  memberActivity     Json?
+  timeSpent          Int      @default(0) // in hours
+  milestonesAchieved Int      @default(0)
+  issuesResolved     Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// Partnership and Funding Models (for Hub Supervisors)
+model Partnership {
+  id            String            @id @default(uuid())
+  hubId         String
+  partnerName   String
+  partnerType   PartnerType
+  contactPerson String?
+  contactEmail  String?
+  contactPhone  String?
+  description   String
+  status        PartnershipStatus @default(PROPOSED)
+  startDate     DateTime?
+  endDate       DateTime?
+  value         Float?
+  currency      String            @default("USD")
+  documents     String[]          @default([])
+  createdBy     String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  hub     Hub  @relation(fields: [hubId], references: [id])
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@index([hubId])
+  @@index([createdBy])
+  @@index([status])
+}
+
+model FundingOpportunity {
+  id              String        @id @default(uuid())
+  hubId           String
+  title           String
+  funder          String
+  amount          Float
+  currency        String        @default("USD")
+  description     String
+  requirements    String[]
+  deadline        DateTime
+  status          FundingStatus @default(IDENTIFIED)
+  applicationDate DateTime?
+  documents       String[]      @default([])
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  hub     Hub  @relation(fields: [hubId], references: [id])
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@index([hubId])
+  @@index([createdBy])
+  @@index([status])
+  @@index([deadline])
+}
+
+// Notification Model
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  priority  Priority         @default(MEDIUM)
+  read      Boolean          @default(false)
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// NextAuth Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  type              String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionToken])
+}
+
+// Enums
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum SubRole {
+  MEMBER
+  HUB_LEADER
+  SUPERVISOR
+  PROGRAMME_SUPERVISOR
+}
+
+enum Visibility {
+  PUBLIC
+  AUTHENTICATED
+  HUB_MEMBERS
+  PROGRAMME_MEMBERS
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  COMPLETED
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum SuggestionType {
+  IMPROVEMENT
+  BUG_REPORT
+  FEATURE_REQUEST
+  FEEDBACK
+}
+
+enum NotificationType {
+  SYSTEM
+  HUB_INVITATION
+  PROJECT_UPDATE
+  EVENT_REMINDER
+  TASK_ASSIGNMENT
+  ANNOUNCEMENT
+  MESSAGE
+}
+
+enum PartnerType {
+  INDUSTRY
+  ACADEMIC
+  NGO
+  GOVERNMENT
+  INTERNATIONAL
+}
+
+enum PartnershipStatus {
+  PROPOSED
+  NEGOTIATING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum FundingStatus {
+  IDENTIFIED
+  APPLYING
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RECEIVED
+}
+
+model OTP {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  timestamp  DateTime @default(now())
+  userId     String
+  userEmail  String
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  ipAddress  String
+  userAgent  String
+  success    Boolean
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+  @@index([entityType])
+}
