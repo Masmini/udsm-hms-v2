@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn, getSession } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -80,6 +80,7 @@ export default function SignInPage() {
         email: data.email.toLowerCase(),
         password: data.password,
         redirect: false,
+        callbackUrl: "/",
       });
 
       if (result?.error) {
@@ -87,17 +88,23 @@ export default function SignInPage() {
         return;
       }
 
-      // Get session to determine redirect
-      const session = await getSession();
-      if (session?.user) {
-        if (session.user.role === "ADMIN") {
-          router.push("/admin/dashboard");
+      // Redirect based on role
+      if (result?.ok) {
+        const response = await fetch("/api/auth/session");
+        const session = await response.json();
+        if (session?.user) {
+          if (session.user.role === "ADMIN") {
+            router.push("/admin/dashboard");
+          } else {
+            router.push(`/dashboard/${session.user.id}`);
+          }
         } else {
-          router.push(`/dashboard/${session.user.id}`);
+          setError("Failed to retrieve session. Please try again.");
         }
       }
     } catch (error) {
-      setError("An error occurred. Please try again.");
+      console.error("[SignIn Error]:", error);
+      setError("An error occurred during sign-in. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -106,8 +113,10 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
+      setError("");
       await signIn("google", { callbackUrl: "/" });
     } catch (error) {
+      console.error("[Google SignIn Error]:", error);
       setError("Google sign-in failed. Please try again.");
       setIsLoading(false);
     }

@@ -16,56 +16,61 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password are required");
-        }
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            throw new Error("Email and password are required");
+          }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          select: {
-            id: true,
-            email: true,
-            password: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            profilePicture: true,
-            isGoogleUser: true,
-            deletedAt: true,
-          },
-        });
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.toLowerCase() },
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              firstName: true,
+              lastName: true,
+              role: true,
+              profilePicture: true,
+              isGoogleUser: true,
+              deletedAt: true,
+            },
+          });
 
-        if (!user || user.deletedAt) {
-          throw new Error("User not found or account deactivated");
-        }
+          if (!user || user.deletedAt) {
+            throw new Error("User not found or account deactivated");
+          }
 
-        if (user.isGoogleUser) {
-          throw new Error("Please sign in with Google");
-        }
+          if (user.isGoogleUser) {
+            throw new Error("Please sign in with Google");
+          }
 
-        if (!user.password) {
-          throw new Error(
-            "Password not set. Use Google sign-in or reset password."
+          if (!user.password) {
+            throw new Error(
+              "Password not set. Use Google sign-in or reset password."
+            );
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password
           );
-        }
+          if (!isPasswordValid) {
+            throw new Error("Invalid password");
+          }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-        if (!isPasswordValid) {
-          throw new Error("Invalid password");
+          return {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            profilePicture: user.profilePicture ?? undefined,
+            isGoogleUser: user.isGoogleUser,
+          };
+        } catch (error: any) {
+          console.error("[Credentials Authorize Error]:", error.message);
+          throw new Error(error.message);
         }
-
-        return {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          profilePicture: user.profilePicture ?? undefined,
-          isGoogleUser: user.isGoogleUser,
-        };
       },
     }),
     GoogleProvider({
@@ -80,13 +85,13 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: "database", // Changed from "jwt" to ensure sessions are stored in DB
     maxAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (account?.provider === "google") {
-        try {
+      try {
+        if (account?.provider === "google") {
           const email = user.email!.toLowerCase();
           const existingUser = await prisma.user.findUnique({
             where: { email },
@@ -122,7 +127,7 @@ export const authOptions: NextAuthOptions = {
             user.role = existingUser.role;
             user.firstName = existingUser.firstName;
             user.lastName = existingUser.lastName;
-            user.profilePicture = existingUser.profilePicture ?? undefined; // Fix: Convert null to undefined
+            user.profilePicture = existingUser.profilePicture ?? undefined;
             user.isGoogleUser = true;
           } else {
             const newUser = await prisma.user.create({
@@ -136,7 +141,7 @@ export const authOptions: NextAuthOptions = {
                   (profile as any)?.family_name ||
                   user.name?.split(" ")[1] ||
                   "",
-                profilePicture: user.image ?? undefined, // Ensure consistency
+                profilePicture: user.image ?? undefined,
                 role: "STUDENT",
                 isGoogleUser: true,
               },
@@ -145,10 +150,9 @@ export const authOptions: NextAuthOptions = {
             user.role = newUser.role;
             user.firstName = newUser.firstName;
             user.lastName = newUser.lastName;
-            user.profilePicture = newUser.profilePicture ?? undefined; // Ensure consistency
+            user.profilePicture = newUser.profilePicture ?? undefined;
             user.isGoogleUser = true;
 
-            // Create welcome notification
             await prisma.notification.create({
               data: {
                 userId: newUser.id,
@@ -162,7 +166,6 @@ export const authOptions: NextAuthOptions = {
             });
           }
 
-          // Link Google account to Account model
           if (account) {
             const accountKey = {
               provider: "google",
@@ -192,34 +195,22 @@ export const authOptions: NextAuthOptions = {
               );
             }
           }
-        } catch (error: any) {
-          console.error("Error handling Google sign-in:", error);
-          throw new Error(error.message || "Google sign-in failed");
         }
+        return true;
+      } catch (error: any) {
+        console.error("[Google SignIn Error]:", error.message);
+        throw new Error(error.message || "Google sign-in failed");
       }
-      return true;
     },
-    async jwt({ token, user }) {
+    async session({ session, user }) {
+      // For database strategy, user is available directly from the adapter
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.firstName = user.firstName;
-        token.lastName = user.lastName;
-        token.profilePicture = user.profilePicture; // Already string | undefined
-        token.isGoogleUser = user.isGoogleUser;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.firstName = token.firstName as string;
-        session.user.lastName = token.lastName as string;
-        session.user.profilePicture = token.profilePicture as
-          | string
-          | undefined;
-        session.user.isGoogleUser = token.isGoogleUser as boolean;
+        session.user.id = user.id;
+        session.user.role = user.role;
+        session.user.firstName = user.firstName;
+        session.user.lastName = user.lastName;
+        session.user.profilePicture = user.profilePicture ?? undefined;
+        session.user.isGoogleUser = user.isGoogleUser;
       }
       return session;
     },
@@ -232,14 +223,16 @@ export const authOptions: NextAuthOptions = {
           return `${baseUrl}${callbackUrl}`;
         }
       }
-      // Fetch session to determine role
-      const { getServerSession } = await import("next-auth");
-      const session = await getServerSession(authOptions);
+      // Use session from adapter
+      const session = await prisma.session.findFirst({
+        where: { userId: parsedUrl.searchParams.get("userId") || undefined },
+        include: { user: true },
+      });
       return (
         baseUrl +
         (session?.user?.role === "ADMIN"
           ? "/admin/dashboard"
-          : "/home/dashboard")
+          : `/dashboard/${session?.user?.id}`)
       );
     },
   },
@@ -248,4 +241,5 @@ export const authOptions: NextAuthOptions = {
     error: "/auth/error",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development", // Enable debug logs
 };
