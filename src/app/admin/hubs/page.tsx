@@ -1,8 +1,24 @@
+//src/app/admin/hubs/page.tsx
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AdminHubsClient from "./admin-hubs-client";
+import { Prisma } from "@prisma/client";
+
+type HubWithRelations = Prisma.HubGetPayload<{
+  include: {
+    categories: true;
+    _count: {
+      select: {
+        members: true;
+        projects: true;
+        programmes: true;
+        events: true;
+      };
+    };
+  };
+}>;
 
 export default async function AdminHubsPage({
   searchParams,
@@ -47,13 +63,13 @@ export default async function AdminHubsPage({
         },
       },
       orderBy: { createdAt: "desc" },
-    }),
+    }) as Promise<HubWithRelations[]>,
     prisma.hub.count({ where }),
   ]);
 
   return (
     <AdminHubsClient
-      hubs={hubs.map((hub) => ({
+      hubs={hubs.map((hub: HubWithRelations) => ({
         ...hub,
         logo: hub.logo === null ? undefined : hub.logo,
         coverImage: hub.coverImage === null ? undefined : hub.coverImage,
