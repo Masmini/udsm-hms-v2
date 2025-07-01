@@ -4,18 +4,22 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AdminHubsClient from "./admin-hubs-client";
-import { Hub } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
-// Define the type for Hub with relations using Prisma's GetPayload-like structure
-type HubWithRelations = Hub & {
-  categories: { id: string; name: string }[];
-  _count: {
-    members: number;
-    projects: number;
-    programmes: number;
-    events: number;
+// Define the type for Hub with relations using Prisma's GetPayload
+type HubWithRelations = Prisma.HubGetPayload<{
+  include: {
+    categories: true;
+    _count: {
+      select: {
+        members: true;
+        projects: true;
+        programmes: true;
+        events: true;
+      };
+    };
   };
-};
+}>;
 
 export default async function AdminHubsPage({
   searchParams,
