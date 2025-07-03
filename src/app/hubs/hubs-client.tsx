@@ -1,7 +1,7 @@
 //src/app/hubs/hubs-client.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Grid,
@@ -20,19 +20,36 @@ import {
   Button,
   Avatar,
   Paper,
+  CardActions,
+  Skeleton,
 } from "@mui/material";
-import { Search, Group, Assignment, Event, School } from "@mui/icons-material";
+import {
+  Search,
+  Group,
+  Assignment,
+  Event,
+  School,
+  PersonAdd,
+  Settings,
+  MoreHoriz,
+  Dashboard,
+} from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { EnhancedButton } from "@/components/ui/enhanced-button";
+import { useNotification } from "@/components/providers/notification-provider";
+import { UserPlus } from "lucide-react";
 
 interface Hub {
   id: string;
   name: string;
   description: string;
   logo?: string | null | undefined;
+  coverImage?: string | null | undefined;
   cardBio?: string | null;
-  categories: { name: string }[];
+  categories: { name: string; color?: string }[];
   _count: {
     members: number;
     projects: number;
@@ -68,10 +85,52 @@ export default function HubsClient({
   searchParams,
 }: HubsClientProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const { showNotification } = useNotification();
+
   const [search, setSearch] = useState(searchParams.search);
   const [selectedCategory, setSelectedCategory] = useState(
     searchParams.category
   );
+  const [hubMemberships, setHubMemberships] = useState<{ [key: string]: any }>(
+    {}
+  );
+  const [loadingMemberships, setLoadingMemberships] = useState(true);
+  const [requestingJoin, setRequestingJoin] = useState<{
+    [key: string]: boolean;
+  }>({});
+
+  // Fetch user's hub memberships
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchUserMemberships();
+    } else {
+      setLoadingMemberships(false);
+    }
+  }, [session]);
+
+  const fetchUserMemberships = async () => {
+    try {
+      setLoadingMemberships(true);
+      const membershipPromises = hubs.map((hub) =>
+        fetch(`/api/hubs/${hub.id}/membership?userId=${session?.user?.id}`)
+          .then((res) => res.json())
+          .then((data) => ({ hubId: hub.id, membership: data.data }))
+      );
+
+      const memberships = await Promise.all(membershipPromises);
+      const membershipMap = memberships.reduce((acc, { hubId, membership }) => {
+        acc[hubId] = membership;
+        return acc;
+      }, {} as { [key: string]: any });
+
+      setHubMemberships(membershipMap);
+    } catch (error) {
+      console.error("Error fetching memberships:", error);
+    } finally {
+      setLoadingMemberships(false);
+    }
+  };
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -90,6 +149,104 @@ export default function HubsClient({
     if (selectedCategory) params.set("category", selectedCategory);
     params.set("page", value.toString());
     router.push(`/hubs?${params.toString()}`);
+  };
+
+  const handleJoinRequest = async (hubId: string) => {
+    if (!session?.user?.id) {
+      showNotification("Please sign in to join hubs", "warning");
+      return;
+    }
+
+    try {
+      setRequestingJoin((prev) => ({ ...prev, [hubId]: true }));
+
+      const response = await fetch(`/api/hubs/${hubId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session.user.id,
+          message: "I would like to join this hub",
+        }),
+      });
+
+      if (response.ok) {
+        showNotification("Join request sent successfully!", "success");
+        // Refresh memberships
+        fetchUserMemberships();
+      } else {
+        const error = await response.json();
+        showNotification(error.error || "Failed to send join request", "error");
+      }
+    } catch (error) {
+      showNotification("Failed to send join request", "error");
+    } finally {
+      setRequestingJoin((prev) => ({ ...prev, [hubId]: false }));
+    }
+  };
+
+  const getDashboardUrl = (hubId: string, membership: any) => {
+    if (!session?.user?.id || !membership) return "";
+
+    const role = membership.role;
+    if (role === "HUB_LEADER") {
+      return `/dashboard/${session.user.id}/my-hubs/${hubId}/hub-leader`;
+    } else if (role === "SUPERVISOR") {
+      return `/dashboard/${session.user.id}/my-hubs/${hubId}/hub-supervisor`;
+    } else {
+      return `/dashboard/${session.user.id}/my-hubs/${hubId}/hub-member`;
+    }
+  };
+
+  const renderActionButton = (hub: Hub) => {
+    if (!session?.user?.id) {
+      return (
+        <EnhancedButton
+          variant="outlined"
+          startIcon={<PersonAdd />}
+          onClick={() =>
+            showNotification("Please sign in to join hubs", "warning")
+          }
+          size="small"
+          fullWidth
+        >
+          Request to Join
+        </EnhancedButton>
+      );
+    }
+
+    if (loadingMemberships) {
+      return <Skeleton variant="rectangular" height={36} />;
+    }
+
+    const membership = hubMemberships[hub.id];
+
+    if (membership && membership.isActive) {
+      return (
+        <EnhancedButton
+          variant="contained"
+          startIcon={<Dashboard />}
+          onClick={() => router.push(getDashboardUrl(hub.id, membership))}
+          size="small"
+          fullWidth
+        >
+          Open Dashboard
+        </EnhancedButton>
+      );
+    }
+
+    return (
+      <EnhancedButton
+        variant="outlined"
+        startIcon={<UserPlus />}
+        onClick={() => handleJoinRequest(hub.id)}
+        loading={requestingJoin[hub.id]}
+        loadingText="Requesting..."
+        size="small"
+        fullWidth
+      >
+        Request to Join
+      </EnhancedButton>
+    );
   };
 
   return (
@@ -193,17 +350,23 @@ export default function HubsClient({
                   height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  cursor: "pointer",
-                  transition: "transform 0.2s, box-shadow 0.2s",
+                  transition: "all 0.3s ease-in-out",
                   "&:hover": {
                     transform: "translateY(-4px)",
                     boxShadow: 4,
                   },
                 }}
-                component={Link}
-                href={`/hubs/${hub.id}`}
               >
-                {hub.logo && (
+                {/* Cover Image or Logo */}
+                {hub.coverImage ? (
+                  <CardMedia
+                    component="img"
+                    height="200"
+                    image={hub.coverImage}
+                    alt={hub.name}
+                    sx={{ objectFit: "cover" }}
+                  />
+                ) : hub.logo ? (
                   <CardMedia
                     component="img"
                     height="200"
@@ -211,48 +374,79 @@ export default function HubsClient({
                     alt={hub.name}
                     sx={{ objectFit: "cover" }}
                   />
-                )}
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                    {!hub.logo && (
-                      <Avatar sx={{ mr: 2, bgcolor: "primary.main" }}>
-                        {hub.name[0]}
-                      </Avatar>
-                    )}
-                    <Typography variant="h6" fontWeight="bold">
-                      {hub.name}
-                    </Typography>
+                ) : (
+                  <Box
+                    sx={{
+                      height: 200,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "primary.main",
+                      color: "white",
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 80,
+                        height: 80,
+                        fontSize: "2rem",
+                        bgcolor: "primary.dark",
+                      }}
+                    >
+                      {hub.name[0]}
+                    </Avatar>
                   </Box>
+                )}
 
+                <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                  {/* Hub Name */}
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    {hub.name}
+                  </Typography>
+
+                  {/* Hub Bio/Description */}
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    sx={{ mb: 2, minHeight: 40 }}
+                    sx={{
+                      mb: 2,
+                      minHeight: 60,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
                   >
-                    {(hub.cardBio || hub.description).substring(0, 100)}...
+                    {hub.cardBio || hub.description}
                   </Typography>
 
                   {/* Categories */}
-                  <Box sx={{ mb: 2 }}>
+                  <Box sx={{ mb: 2, minHeight: 32 }}>
                     {hub.categories.slice(0, 2).map((category) => (
                       <Chip
                         key={category.name}
                         label={category.name}
                         size="small"
-                        sx={{ mr: 0.5, mb: 0.5 }}
+                        sx={{
+                          mr: 0.5,
+                          mb: 0.5,
+                          bgcolor: category.color || "primary.light",
+                          color: "white",
+                        }}
                       />
                     ))}
                     {hub.categories.length > 2 && (
                       <Chip
-                        label={`+${hub.categories.length - 2} more`}
+                        label={`+${hub.categories.length - 2}`}
                         size="small"
                         variant="outlined"
+                        sx={{ mr: 0.5, mb: 0.5 }}
                       />
                     )}
                   </Box>
 
                   {/* Stats */}
-                  <Grid container spacing={1}>
+                  <Grid container spacing={1} sx={{ mb: 2 }}>
                     <Grid item xs={6}>
                       <Box sx={{ display: "flex", alignItems: "center" }}>
                         <Group
@@ -311,6 +505,21 @@ export default function HubsClient({
                     </Grid>
                   </Grid>
                 </CardContent>
+
+                {/* Action Buttons */}
+                <CardActions sx={{ p: 3, pt: 0, gap: 1 }}>
+                  {renderActionButton(hub)}
+
+                  <EnhancedButton
+                    variant="outlined"
+                    startIcon={<MoreHoriz />}
+                    onClick={() => router.push(`/hubs/${hub.id}`)}
+                    size="small"
+                    sx={{ minWidth: "auto", px: 2 }}
+                  >
+                    More
+                  </EnhancedButton>
+                </CardActions>
               </Card>
             </motion.div>
           </Grid>

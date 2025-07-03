@@ -92,20 +92,26 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = pathname.startsWith("/auth");
 
-  // Track navigation history
   useEffect(() => {
-    setNavigationHistory((prev) => {
-      const newHistory = [...prev];
-      if (newHistory[newHistory.length - 1] !== pathname) {
-        newHistory.push(pathname);
-        // Keep only last 10 pages
-        if (newHistory.length > 10) {
-          newHistory.shift();
-        }
+    if (status === "authenticated" && session?.user) {
+      console.log(
+        "[AppNavigation]: Session authenticated, user:",
+        session.user.id
+      );
+      const expectedPath =
+        session.user.role === "ADMIN"
+          ? "/admin/dashboard"
+          : `/dashboard/${session.user.id}`;
+      if (
+        pathname.startsWith("/auth/signin") ||
+        pathname === "/dashboard" ||
+        pathname === "/"
+      ) {
+        console.log("[AppNavigation]: Redirecting to:", expectedPath);
+        router.push(expectedPath);
       }
-      return newHistory;
-    });
-  }, [pathname]);
+    }
+  }, [status, session, pathname, router]);
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -354,7 +360,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
           <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
               <Avatar
-                src={session.user.profilePicture}
+                src={session.user.profilePicture || undefined}
                 sx={{ width: 32, height: 32, mr: 1 }}
               >
                 {session.user.firstName[0]}
@@ -684,7 +690,7 @@ export function AppNavigation({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     <Avatar
-                      src={session.user.profilePicture}
+                      src={session.user.profilePicture || undefined}
                       alt={session.user.firstName}
                       sx={{
                         bgcolor: "primary.main",

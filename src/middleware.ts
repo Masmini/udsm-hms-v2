@@ -9,6 +9,13 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
+    // Redirect authenticated users from auth pages
+    if (pathname.startsWith("/auth/") && token) {
+      const redirectUrl =
+        token.role === "ADMIN" ? "/admin/dashboard" : `/dashboard/${token.id}`;
+      return NextResponse.redirect(new URL(redirectUrl, req.url));
+    }
+
     // Handle /admin route - redirect to /admin/dashboard
     if (pathname === "/admin") {
       if (!token || token.role !== "ADMIN") {
@@ -56,7 +63,13 @@ export default withAuth(
           pathname === "/" ||
           pathname.startsWith("/auth/") ||
           pathname.startsWith("/hubs") ||
+          pathname.startsWith("/api/hubs") || // Explicitly allow /api/hubs
           pathname.startsWith("/events") ||
+          pathname.startsWith("/api/events") ||
+          pathname.startsWith("/api/projects") ||
+          pathname.startsWith("/api/programmes") ||
+          pathname.startsWith("/api/hubs") ||
+          pathname.startsWith("/api/ai") ||
           pathname.startsWith("/projects") ||
           pathname.startsWith("/programmes") ||
           pathname.startsWith("/news") ||
@@ -76,14 +89,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (NextAuth API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, etc.)
-     */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|api/hubs|.*\\.).*)",
   ],
 };

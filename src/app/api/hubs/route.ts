@@ -1,13 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+//src/app/api/hubs/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 
 const createHubSchema = z.object({
-  name: z.string().min(3, 'Hub name must be at least 3 characters'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
-  cardBio: z.string().max(200, 'Card bio must be less than 200 characters').optional(),
+  name: z.string().min(3, "Hub name must be at least 3 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  cardBio: z
+    .string()
+    .max(200, "Card bio must be less than 200 characters")
+    .optional(),
   logo: z.string().url().optional(),
   coverImage: z.string().url().optional(),
   categories: z.array(z.string()).optional(),
@@ -16,10 +20,10 @@ const createHubSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const search = searchParams.get('search') || '';
-    const category = searchParams.get('category') || '';
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || "";
+    const category = searchParams.get("category") || "";
 
     const skip = (page - 1) * limit;
 
@@ -27,14 +31,14 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
       ...(search && {
         OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { description: { contains: search, mode: 'insensitive' as const } },
+          { name: { contains: search, mode: "insensitive" as const } },
+          { description: { contains: search, mode: "insensitive" as const } },
         ],
       }),
       ...(category && {
         categories: {
           some: {
-            name: { contains: category, mode: 'insensitive' as const },
+            name: { contains: category, mode: "insensitive" as const },
           },
         },
       }),
@@ -56,7 +60,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.hub.count({ where }),
     ]);
@@ -71,9 +75,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error fetching hubs:', error);
+    console.error("Error fetching hubs:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -82,8 +86,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user?.id || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -97,10 +101,11 @@ export async function POST(request: NextRequest) {
         logo: validatedData.logo,
         coverImage: validatedData.coverImage,
         categories: {
-          connectOrCreate: validatedData.categories?.map((categoryName) => ({
-            where: { name: categoryName },
-            create: { name: categoryName },
-          })) || [],
+          connectOrCreate:
+            validatedData.categories?.map((categoryName) => ({
+              where: { name: categoryName },
+              create: { name: categoryName },
+            })) || [],
         },
       },
       include: {
@@ -118,9 +123,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(hub, { status: 201 });
   } catch (error) {
-    console.error('Error creating hub:', error);
+    console.error("Error creating hub:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

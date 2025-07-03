@@ -17,10 +17,12 @@ export default async function HubsPage({
 
   const where = {
     deletedAt: null,
+    isActive: true,
     ...(search && {
       OR: [
         { name: { contains: search, mode: "insensitive" as const } },
         { description: { contains: search, mode: "insensitive" as const } },
+        { cardBio: { contains: search, mode: "insensitive" as const } },
       ],
     }),
     ...(category && {
@@ -38,13 +40,38 @@ export default async function HubsPage({
       skip,
       take: limit,
       include: {
-        categories: true,
+        categories: {
+          select: {
+            name: true,
+            color: true,
+          },
+        },
         _count: {
           select: {
-            members: true,
-            projects: true,
-            programmes: true,
-            events: true,
+            members: {
+              where: {
+                isActive: true,
+                deletedAt: null,
+              },
+            },
+            projects: {
+              where: {
+                deletedAt: null,
+                publishStatus: "PUBLISHED",
+              },
+            },
+            programmes: {
+              where: {
+                deletedAt: null,
+                publishStatus: "PUBLISHED",
+              },
+            },
+            events: {
+              where: {
+                deletedAt: null,
+                publishStatus: "PUBLISHED",
+              },
+            },
           },
         },
       },
@@ -59,7 +86,13 @@ export default async function HubsPage({
   return (
     <Suspense fallback={<Skeleton variant="rectangular" height={400} />}>
       <HubsClient
-        hubs={hubs}
+        hubs={hubs.map((hub) => ({
+          ...hub,
+          categories: hub.categories.map((cat) => ({
+            ...cat,
+            color: cat.color === null ? undefined : cat.color,
+          })),
+        }))}
         categories={categories}
         pagination={{
           page,

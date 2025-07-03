@@ -1,6 +1,9 @@
 //src/types/index.ts
 import { Prisma } from "@prisma/client";
 
+// src/types/index.ts
+export type Category = Prisma.CategoryGetPayload<{}>;
+
 // User Types
 export type UserWithDetails = Prisma.UserGetPayload<{
   include: {

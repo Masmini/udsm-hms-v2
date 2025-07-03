@@ -1,22 +1,23 @@
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import DashboardClient from './dashboard-client';
+//src/app/dashboard/[userId]/page.tsx
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import DashboardClient from "./dashboard-client";
 
-export default async function DashboardPage({ 
-  params 
-}: { 
-  params: { userId: string } 
+export default async function DashboardPage({
+  params,
+}: {
+  params: { userId: string };
 }) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    redirect('/auth/signin');
+    redirect("/auth/signin");
   }
 
   if (session.user.id !== params.userId) {
-    redirect('/auth/signin');
+    redirect("/auth/signin");
   }
 
   // Fetch user data with related information
@@ -56,7 +57,7 @@ export default async function DashboardPage({
         },
       },
       eventRegistrations: {
-        where: { status: 'APPROVED' },
+        where: { status: "APPROVED" },
         include: {
           event: {
             select: {
@@ -76,11 +77,31 @@ export default async function DashboardPage({
           },
         },
       },
+      projectMembers: {
+        where: { deletedAt: null },
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              coverImage: true,
+              completionRate: true,
+              hub: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
   if (!user) {
-    redirect('/auth/signin');
+    redirect("/auth/signin");
   }
 
   return <DashboardClient user={user} />;

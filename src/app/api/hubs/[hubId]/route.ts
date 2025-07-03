@@ -1,19 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+//src/app/api/hubs/[hubId]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { hubId: string } }
 ) {
   try {
+    const hubId = params.hubId;
+    console.log(`[API] Fetching hub with ID: ${hubId}`);
+
+    if (!hubId) {
+      console.warn("[API] Hub ID is missing");
+      return NextResponse.json(
+        { error: "Hub ID is required" },
+        { status: 400 }
+      );
+    }
+
     const hub = await prisma.hub.findUnique({
-      where: { id: params.hubId, deletedAt: null },
+      where: { id: hubId, deletedAt: null },
       include: {
         categories: true,
         members: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, isActive: true },
           include: {
             user: {
               select: {
@@ -28,7 +38,7 @@ export async function GET(
           },
         },
         projects: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, publishStatus: "PUBLISHED" },
           select: {
             id: true,
             title: true,
@@ -40,7 +50,7 @@ export async function GET(
           },
         },
         programmes: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, publishStatus: "PUBLISHED" },
           select: {
             id: true,
             title: true,
@@ -51,7 +61,7 @@ export async function GET(
           },
         },
         events: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, publishStatus: "PUBLISHED" },
           select: {
             id: true,
             title: true,
@@ -64,7 +74,7 @@ export async function GET(
           },
         },
         news: {
-          where: { visibility: 'PUBLIC' },
+          where: { visibility: "PUBLIC", publishStatus: "PUBLISHED" },
           select: {
             id: true,
             title: true,
@@ -78,29 +88,36 @@ export async function GET(
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take: 5,
         },
         _count: {
           select: {
-            members: true,
-            projects: true,
-            programmes: true,
-            events: true,
+            members: { where: { isActive: true, deletedAt: null } },
+            projects: {
+              where: { publishStatus: "PUBLISHED", deletedAt: null },
+            },
+            programmes: {
+              where: { publishStatus: "PUBLISHED", deletedAt: null },
+            },
+            events: { where: { publishStatus: "PUBLISHED", deletedAt: null } },
           },
         },
       },
     });
 
     if (!hub) {
-      return NextResponse.json({ error: 'Hub not found' }, { status: 404 });
+      console.warn(`[API] Hub not found for ID: ${hubId}`);
+      return NextResponse.json({ error: "Hub not found" }, { status: 404 });
     }
 
-    return NextResponse.json(hub);
+    console.log(`[API] Hub found: ${hub.name}`);
+    return NextResponse.json({ data: hub }, { status: 200 });
   } catch (error) {
-    console.error('Error fetching hub:', error);
+    console.error("[API] Error fetching hub:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error", details: errorMessage },
       { status: 500 }
     );
   }

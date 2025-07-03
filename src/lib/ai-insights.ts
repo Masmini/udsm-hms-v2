@@ -1,3 +1,4 @@
+//src/lib/ai-insights.ts
 // AI-powered insights and analytics
 interface SystemMetrics {
   totalUsers: number;
@@ -9,13 +10,13 @@ interface SystemMetrics {
   growthRate: number;
 }
 
-interface AIInsight {
-  type: 'trend' | 'recommendation' | 'alert' | 'prediction';
+export interface AIInsight {
+  type: "trend" | "recommendation" | "alert" | "prediction";
   title: string;
   description: string;
   confidence: number;
   actionable: boolean;
-  priority: 'low' | 'medium' | 'high';
+  priority: "low" | "medium" | "high";
   data?: any;
 }
 
@@ -24,8 +25,8 @@ export class AIInsightsService {
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY || '';
-    this.baseUrl = 'https://api.openai.com/v1';
+    this.apiKey = process.env.OPENAI_API_KEY || "";
+    this.baseUrl = "https://api.openai.com/v1";
   }
 
   async generateSystemInsights(metrics: SystemMetrics): Promise<AIInsight[]> {
@@ -52,20 +53,21 @@ export class AIInsightsService {
       `;
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: "gpt-4",
           messages: [
             {
-              role: 'system',
-              content: 'You are an AI analyst specializing in educational platform analytics. Provide concise, actionable insights.',
+              role: "system",
+              content:
+                "You are an AI analyst specializing in educational platform analytics. Provide concise, actionable insights.",
             },
             {
-              role: 'user',
+              role: "user",
               content: prompt,
             },
           ],
@@ -80,10 +82,10 @@ export class AIInsightsService {
 
       const data = await response.json();
       const insights = JSON.parse(data.choices[0].message.content);
-      
+
       return insights;
     } catch (error) {
-      console.error('AI insights error:', error);
+      console.error("AI insights error:", error);
       return this.getFallbackInsights(metrics);
     }
   }
@@ -103,16 +105,16 @@ export class AIInsightsService {
       `;
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: "gpt-4",
           messages: [
             {
-              role: 'user',
+              role: "user",
               content: prompt,
             },
           ],
@@ -127,19 +129,19 @@ export class AIInsightsService {
 
       const data = await response.json();
       const recommendations = data.choices[0].message.content
-        .split('\n')
+        .split("\n")
         .filter((line: string) => line.trim().length > 0)
         .slice(0, 5);
-      
+
       return recommendations;
     } catch (error) {
-      console.error('AI recommendations error:', error);
+      console.error("AI recommendations error:", error);
       return [
-        'Increase member engagement through regular events',
-        'Create collaborative projects to foster teamwork',
-        'Establish mentorship programs',
-        'Develop partnerships with industry leaders',
-        'Implement feedback collection systems',
+        "Increase member engagement through regular events",
+        "Create collaborative projects to foster teamwork",
+        "Establish mentorship programs",
+        "Develop partnerships with industry leaders",
+        "Implement feedback collection systems",
       ];
     }
   }
@@ -150,24 +152,26 @@ export class AIInsightsService {
     // User engagement analysis
     if (metrics.engagementRate < 30) {
       insights.push({
-        type: 'alert',
-        title: 'Low User Engagement',
-        description: 'User engagement is below optimal levels. Consider implementing gamification or incentive programs.',
+        type: "alert",
+        title: "Low User Engagement",
+        description:
+          "User engagement is below optimal levels. Consider implementing gamification or incentive programs.",
         confidence: 0.8,
         actionable: true,
-        priority: 'high',
+        priority: "high",
       });
     }
 
     // Growth rate analysis
     if (metrics.growthRate > 20) {
       insights.push({
-        type: 'trend',
-        title: 'Strong Growth Trend',
-        description: 'The platform is experiencing healthy growth. Ensure infrastructure can handle increased load.',
+        type: "trend",
+        title: "Strong Growth Trend",
+        description:
+          "The platform is experiencing healthy growth. Ensure infrastructure can handle increased load.",
         confidence: 0.9,
         actionable: true,
-        priority: 'medium',
+        priority: "medium",
       });
     }
 
@@ -175,12 +179,13 @@ export class AIInsightsService {
     const hubUserRatio = metrics.totalHubs / metrics.totalUsers;
     if (hubUserRatio < 0.1) {
       insights.push({
-        type: 'recommendation',
-        title: 'Consider Creating More Hubs',
-        description: 'The hub-to-user ratio suggests there may be demand for more specialized communities.',
+        type: "recommendation",
+        title: "Consider Creating More Hubs",
+        description:
+          "The hub-to-user ratio suggests there may be demand for more specialized communities.",
         confidence: 0.7,
         actionable: true,
-        priority: 'medium',
+        priority: "medium",
       });
     }
 
@@ -198,7 +203,8 @@ export class AIInsightsService {
 
     // Timeline factor
     const duration = projectData.endDate - projectData.startDate;
-    if (duration >= 30 && duration <= 180) { // 1-6 months
+    if (duration >= 30 && duration <= 180) {
+      // 1-6 months
       score += 0.15;
     }
 

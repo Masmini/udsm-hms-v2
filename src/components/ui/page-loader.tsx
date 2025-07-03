@@ -1,3 +1,4 @@
+//src/components/ui/page-loader.tsx
 "use client";
 
 import React from "react";

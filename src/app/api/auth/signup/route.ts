@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { signIn } from "next-auth/react"; // Note: For server-side, use next-auth directly
 
 const signUpSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Verify user.id
+    if (!user.id) {
+      throw new Error("Failed to generate user ID");
+    }
+
     // Create a welcome notification
     await prisma.notification.create({
       data: {
@@ -64,7 +70,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { message: "User created successfully", user },
+      {
+        message: "User created successfully",
+        user,
+        redirectUrl: `/dashboard/${user.id}`,
+      },
       { status: 201 }
     );
   } catch (error) {

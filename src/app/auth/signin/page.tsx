@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,10 +21,12 @@ import {
 import { Visibility, VisibilityOff, Google } from "@mui/icons-material";
 import Link from "next/link";
 import Image from "next/image";
+import { signIn, useSession } from "next-auth/react";
 
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,75 +36,83 @@ export default function SignInPage() {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
   } = useForm<SignInInput>({
     resolver: zodResolver(signInSchema),
+    defaultValues: {
+      email: "",
+    },
   });
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      console.log("[SignIn Page]: User is authenticated, redirecting...");
+      const redirectUrl =
+        session.user.role === "ADMIN"
+          ? "/admin/dashboard"
+          : `/dashboard/${session.user.id}`;
+      router.push(redirectUrl);
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     const errorFromUrl = searchParams.get("error");
     const messageFromUrl = searchParams.get("message");
+    const emailFromUrl = searchParams.get("email");
+
     if (errorFromUrl) {
-      switch (errorFromUrl) {
-        case "User not found or account deactivated":
-          setError(
-            "Account not found or deactivated. Please sign up or contact support."
-          );
-          break;
-        case "Please sign in with Google":
-          setError(
-            "This account uses Google sign-in. Please use the Google button."
-          );
-          break;
-        case "Invalid password":
-          setError("Incorrect email or password. Please try again.");
-          break;
-        case "Password not set. Use Google sign-in or reset password.":
-          setError(
-            "Password not set. Use Google sign-in or reset your password."
-          );
-          break;
-        default:
-          setError("An authentication error occurred. Please try again.");
-      }
+      console.log("[SignIn Page]: Error from URL:", errorFromUrl);
+      setError(decodeURIComponent(errorFromUrl));
     }
     if (messageFromUrl) {
+      console.log("[SignIn Page]: Message from URL:", messageFromUrl);
       setSuccess(decodeURIComponent(messageFromUrl));
     }
-  }, [searchParams]);
+    if (emailFromUrl) {
+      console.log("[SignIn Page]: Email from URL:", emailFromUrl);
+      setValue("email", decodeURIComponent(emailFromUrl));
+    }
+    console.log("[SignIn Page]: Cookies:", document.cookie);
+  }, [searchParams, setValue]);
 
   const onSubmit = async (data: SignInInput) => {
     try {
       setIsLoading(true);
       setError("");
 
+      console.log(
+        "[SignIn]: Attempting credentials sign-in with email:",
+        data.email
+      );
       const result = await signIn("credentials", {
         email: data.email.toLowerCase(),
         password: data.password,
         redirect: false,
-        callbackUrl: "/",
       });
 
       if (result?.error) {
+        console.error("[SignIn]: Sign-in error:", result.error);
         setError(result.error);
-        return;
-      }
-
-      // Redirect based on role
-      if (result?.ok) {
-        const response = await fetch("/api/auth/session");
-        const session = await response.json();
-        if (session?.user) {
-          if (session.user.role === "ADMIN") {
-            router.push("/admin/dashboard");
-          } else {
-            router.push(`/dashboard/${session.user.id}`);
+      } else {
+        // Wait for session to be updated
+        const interval = setInterval(async () => {
+          const session = await import("next-auth/react").then((mod) =>
+            mod.getSession()
+          );
+          if (session?.user) {
+            clearInterval(interval);
+            const redirectUrl =
+              session.user.role === "ADMIN"
+                ? "/admin/dashboard"
+                : `/dashboard/${session.user.id}`;
+            console.log("[SignIn]: Redirecting to:", redirectUrl);
+            router.push(redirectUrl);
           }
-        } else {
-          setError("Failed to retrieve session. Please try again.");
-        }
+        }, 500);
       }
-    } catch (error) {
-      console.error("[SignIn Error]:", error);
+    } catch (error: any) {
+      console.error("[SignIn Error]:", error.message, error.stack);
       setError("An error occurred during sign-in. Please try again.");
     } finally {
       setIsLoading(false);
@@ -114,13 +123,49 @@ export default function SignInPage() {
     try {
       setIsLoading(true);
       setError("");
-      await signIn("google", { callbackUrl: "/" });
-    } catch (error) {
-      console.error("[Google SignIn Error]:", error);
+      console.log("[SignIn]: Initiating Google sign-in");
+      const result = await signIn("google", { redirect: false });
+      if (result?.error) {
+        console.error("[Google SignIn]: Sign-in error:", result.error);
+        setError(result.error);
+      } else {
+        // Wait for session to be updated
+        const interval = setInterval(async () => {
+          const session = await import("next-auth/react").then((mod) =>
+            mod.getSession()
+          );
+          if (session?.user) {
+            clearInterval(interval);
+            const redirectUrl =
+              session.user.role === "ADMIN"
+                ? "/admin/dashboard"
+                : `/dashboard/${session.user.id}`;
+            console.log("[Google SignIn]: Redirecting to:", redirectUrl);
+            router.push(redirectUrl);
+          }
+        }, 500);
+      }
+    } catch (error: any) {
+      console.error("[Google SignIn Error]:", error.message, error.stack);
       setError("Google sign-in failed. Please try again.");
       setIsLoading(false);
     }
   };
+
+  if (status === "loading") {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box

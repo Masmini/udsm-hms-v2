@@ -1,6 +1,7 @@
-'use client';
+//src/components/ai/ai-recommendation-engine.tsx
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -17,7 +18,7 @@ import {
   Divider,
   IconButton,
   Skeleton,
-} from '@mui/material';
+} from "@mui/material";
 import {
   AutoAwesome,
   Event,
@@ -28,14 +29,14 @@ import {
   Close,
   ThumbUp,
   ThumbDown,
-} from '@mui/icons-material';
-import { motion } from 'framer-motion';
-import { useSession } from 'next-auth/react';
-import Link from 'next/link';
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 interface Recommendation {
   id: string;
-  type: 'event' | 'project' | 'programme' | 'hub' | 'user';
+  type: "event" | "project" | "programme" | "hub" | "user";
   title: string;
   description: string;
   confidence: number;
@@ -46,14 +47,14 @@ interface Recommendation {
 
 interface AIRecommendationEngineProps {
   userId: string;
-  context?: 'dashboard' | 'hub' | 'project' | 'event';
+  context?: "dashboard" | "hub" | "project" | "event";
   limit?: number;
 }
 
-export default function AIRecommendationEngine({ 
-  userId, 
-  context = 'dashboard', 
-  limit = 5 
+export default function AIRecommendationEngine({
+  userId,
+  context = "dashboard",
+  limit = 5,
 }: AIRecommendationEngineProps) {
   const { data: session } = useSession();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -67,9 +68,9 @@ export default function AIRecommendationEngine({
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ai/recommendations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/ai/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
           context,
@@ -82,32 +83,32 @@ export default function AIRecommendationEngine({
         setRecommendations(data.recommendations);
       }
     } catch (error) {
-      console.error('Error fetching recommendations:', error);
+      console.error("Error fetching recommendations:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDismiss = (recommendationId: string) => {
-    setDismissedIds(prev => new Set(prev).add(recommendationId));
+    setDismissedIds((prev) => new Set(prev).add(recommendationId));
     // Optionally send feedback to improve recommendations
-    sendFeedback(recommendationId, 'dismissed');
+    sendFeedback(recommendationId, "dismissed");
   };
 
   const handleLike = (recommendationId: string) => {
-    sendFeedback(recommendationId, 'liked');
+    sendFeedback(recommendationId, "liked");
   };
 
   const handleDislike = (recommendationId: string) => {
-    sendFeedback(recommendationId, 'disliked');
-    setDismissedIds(prev => new Set(prev).add(recommendationId));
+    sendFeedback(recommendationId, "disliked");
+    setDismissedIds((prev) => new Set(prev).add(recommendationId));
   };
 
   const sendFeedback = async (recommendationId: string, feedback: string) => {
     try {
-      await fetch('/api/ai/recommendation-feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/ai/recommendation-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recommendationId,
           feedback,
@@ -115,21 +116,21 @@ export default function AIRecommendationEngine({
         }),
       });
     } catch (error) {
-      console.error('Error sending feedback:', error);
+      console.error("Error sending feedback:", error);
     }
   };
 
   const getRecommendationIcon = (type: string) => {
     switch (type) {
-      case 'event':
+      case "event":
         return <Event />;
-      case 'project':
+      case "project":
         return <Assignment />;
-      case 'programme':
+      case "programme":
         return <School />;
-      case 'hub':
+      case "hub":
         return <Group />;
-      case 'user':
+      case "user":
         return <Avatar />;
       default:
         return <AutoAwesome />;
@@ -137,22 +138,22 @@ export default function AIRecommendationEngine({
   };
 
   const getRecommendationColor = (confidence: number) => {
-    if (confidence > 0.8) return 'success';
-    if (confidence > 0.6) return 'info';
-    if (confidence > 0.4) return 'warning';
-    return 'default';
+    if (confidence > 0.8) return "success";
+    if (confidence > 0.6) return "info";
+    if (confidence > 0.4) return "warning";
+    return "default";
   };
 
   const visibleRecommendations = recommendations.filter(
-    rec => !dismissedIds.has(rec.id)
+    (rec) => !dismissedIds.has(rec.id)
   );
 
   if (loading) {
     return (
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <AutoAwesome sx={{ mr: 2, color: 'primary.main' }} />
+          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+            <AutoAwesome sx={{ mr: 2, color: "primary.main" }} />
             <Typography variant="h6" fontWeight="bold">
               AI Recommendations
             </Typography>
@@ -170,13 +171,14 @@ export default function AIRecommendationEngine({
   if (visibleRecommendations.length === 0) {
     return (
       <Card>
-        <CardContent sx={{ textAlign: 'center', py: 4 }}>
-          <AutoAwesome sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+        <CardContent sx={{ textAlign: "center", py: 4 }}>
+          <AutoAwesome sx={{ fontSize: 48, color: "text.secondary", mb: 2 }} />
           <Typography variant="h6" gutterBottom>
             No Recommendations Available
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            The AI system is learning your preferences. Check back soon for personalized recommendations!
+            The AI system is learning your preferences. Check back soon for
+            personalized recommendations!
           </Typography>
         </CardContent>
       </Card>
@@ -186,13 +188,13 @@ export default function AIRecommendationEngine({
   return (
     <Card>
       <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <AutoAwesome sx={{ mr: 2, color: 'primary.main' }} />
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+          <AutoAwesome sx={{ mr: 2, color: "primary.main" }} />
           <Typography variant="h6" fontWeight="bold">
             AI Recommendations for You
           </Typography>
         </Box>
-        
+
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Personalized suggestions based on your interests, activity, and goals
         </Typography>
@@ -208,35 +210,52 @@ export default function AIRecommendationEngine({
               <ListItem
                 sx={{
                   border: 1,
-                  borderColor: 'divider',
+                  borderColor: "divider",
                   borderRadius: 2,
                   mb: 2,
                   p: 2,
-                  '&:hover': { bgcolor: 'action.hover' },
+                  "&:hover": { bgcolor: "action.hover" },
                 }}
               >
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: 'primary.main' }}>
+                  <Avatar sx={{ bgcolor: "primary.main" }}>
                     {getRecommendationIcon(recommendation.type)}
                   </Avatar>
                 </ListItemAvatar>
-                
+
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        mb: 1,
+                      }}
+                    >
                       <Typography variant="subtitle1" fontWeight="medium">
                         {recommendation.title}
                       </Typography>
                       <Chip
-                        label={`${Math.round(recommendation.confidence * 100)}% match`}
+                        label={`${Math.round(
+                          recommendation.confidence * 100
+                        )}% match`}
                         size="small"
-                        color={getRecommendationColor(recommendation.confidence) as any}
+                        color={
+                          getRecommendationColor(
+                            recommendation.confidence
+                          ) as any
+                        }
                       />
                     </Box>
                   }
                   secondary={
                     <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 1 }}
+                      >
                         {recommendation.description}
                       </Typography>
                       <Typography variant="caption" color="primary">
@@ -246,7 +265,14 @@ export default function AIRecommendationEngine({
                   }
                 />
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, ml: 2 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1,
+                    ml: 2,
+                  }}
+                >
                   <Button
                     variant="contained"
                     size="small"
@@ -255,8 +281,8 @@ export default function AIRecommendationEngine({
                   >
                     View
                   </Button>
-                  
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+
+                  <Box sx={{ display: "flex", gap: 0.5 }}>
                     <IconButton
                       size="small"
                       onClick={() => handleLike(recommendation.id)}
@@ -286,8 +312,8 @@ export default function AIRecommendationEngine({
         </List>
 
         <Divider sx={{ my: 2 }} />
-        
-        <Box sx={{ textAlign: 'center' }}>
+
+        <Box sx={{ textAlign: "center" }}>
           <Button
             variant="text"
             size="small"
@@ -304,17 +330,17 @@ export default function AIRecommendationEngine({
 
 function getRecommendationLink(recommendation: Recommendation): string {
   switch (recommendation.type) {
-    case 'event':
+    case "event":
       return `/events/${recommendation.data.id}`;
-    case 'project':
+    case "project":
       return `/projects/${recommendation.data.id}`;
-    case 'programme':
+    case "programme":
       return `/programmes/${recommendation.data.id}`;
-    case 'hub':
+    case "hub":
       return `/hubs/${recommendation.data.id}`;
-    case 'user':
+    case "user":
       return `/users/${recommendation.data.id}`;
     default:
-      return '/';
+      return "/";
   }
 }

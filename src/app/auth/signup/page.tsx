@@ -22,9 +22,9 @@ import {
   StepLabel,
 } from "@mui/material";
 import { Visibility, VisibilityOff, Google } from "@mui/icons-material";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
+import { signIn, useSession } from "next-auth/react";
 
 const steps = [
   "Personal Information",
@@ -36,6 +36,7 @@ const steps = [
 export default function SignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -43,7 +44,7 @@ export default function SignUpPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [otp, setOtp] = useState(""); // Local state for OTP
+  const [otp, setOtp] = useState("");
 
   const {
     register,
@@ -55,6 +56,18 @@ export default function SignUpPage() {
   } = useForm<SignUpInput>({
     resolver: zodResolver(signUpSchema),
   });
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      console.log("[SignUp Page]: User is authenticated, redirecting...");
+      const redirectUrl =
+        session.user.role === "ADMIN"
+          ? "/admin/dashboard"
+          : `/dashboard/${session.user.id}`;
+      router.push(redirectUrl);
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     const emailFromUrl = searchParams.get("email");
@@ -89,6 +102,7 @@ export default function SignUpPage() {
     setError("");
     try {
       const email = getValues("email").toLowerCase();
+      console.log("[SignUp]: Sending OTP to:", email);
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,7 +112,9 @@ export default function SignUpPage() {
       if (!res.ok) throw new Error(data.error || "Failed to send OTP");
       setOtpSent(true);
       setActiveStep(2);
+      setResendTimer(90);
     } catch (err: any) {
+      console.error("[SignUp OTP Error]:", err.message);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -113,6 +129,7 @@ export default function SignUpPage() {
     setIsLoading(true);
     setError("");
     try {
+      console.log("[SignUp]: Verifying OTP for:", getValues("email"));
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,6 +140,7 @@ export default function SignUpPage() {
       setOtpVerified(true);
       setActiveStep(3);
     } catch (err: any) {
+      console.error("[SignUp Verify OTP Error]:", err.message);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -134,6 +152,7 @@ export default function SignUpPage() {
     setIsLoading(true);
     setError("");
     try {
+      console.log("[SignUp]: Resending OTP to:", getValues("email"));
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,6 +162,7 @@ export default function SignUpPage() {
       if (!res.ok) throw new Error(data.error || "Failed to resend OTP");
       setResendTimer(90);
     } catch (err: any) {
+      console.error("[SignUp Resend OTP Error]:", err.message);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -158,6 +178,7 @@ export default function SignUpPage() {
       setIsLoading(true);
       setError("");
 
+      console.log("[SignUp]: Sending signup request for:", data.email);
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,9 +196,39 @@ export default function SignUpPage() {
         throw new Error(errorData.error || "Failed to create account");
       }
 
-      router.push("/auth/signin?message=Account created successfully");
+      const { redirectUrl } = await response.json();
+      console.log("[SignUp]: Received redirectUrl:", redirectUrl);
+
+      // Attempt to sign in the user after signup
+      const signInResult = await signIn("credentials", {
+        email: data.email.toLowerCase(),
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        console.error("[SignUp SignIn]: Sign-in error:", signInResult.error);
+        router.push(
+          `/auth/signin?message=${encodeURIComponent(
+            "Account created successfully. Please sign in."
+          )}&email=${encodeURIComponent(data.email)}`
+        );
+      } else {
+        // Wait for session to be updated
+        const interval = setInterval(async () => {
+          const session = await import("next-auth/react").then((mod) =>
+            mod.getSession()
+          );
+          if (session?.user) {
+            clearInterval(interval);
+            console.log("[SignUp]: Redirecting to:", redirectUrl);
+            router.push(redirectUrl);
+          }
+        }, 500);
+      }
     } catch (error: any) {
-      setError(error.message);
+      console.error("[SignUp Error]:", error.message, error.stack);
+      setError(error.message || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -186,12 +237,51 @@ export default function SignUpPage() {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      await signIn("google", { callbackUrl: "/" });
-    } catch (error) {
+      setError("");
+      console.log("[SignUp]: Initiating Google sign-in");
+      const result = await signIn("google", { redirect: false });
+      if (result?.error) {
+        console.error("[Google SignUp]: Sign-in error:", result.error);
+        setError(result.error);
+      } else {
+        // Wait for session to be updated
+        const interval = setInterval(async () => {
+          const session = await import("next-auth/react").then((mod) =>
+            mod.getSession()
+          );
+          if (session?.user) {
+            clearInterval(interval);
+            const redirectUrl =
+              session.user.role === "ADMIN"
+                ? "/admin/dashboard"
+                : `/dashboard/${session.user.id}`;
+            console.log("[Google SignUp]: Redirecting to:", redirectUrl);
+            router.push(redirectUrl);
+          }
+        }, 500);
+      }
+    } catch (error: any) {
+      console.error("[Google SignUp Error]:", error.message, error.stack);
       setError("Google sign-in failed. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };
+
+  if (status === "loading") {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -296,7 +386,7 @@ export default function SignUpPage() {
               disabled={isLoading}
               sx={{ mt: 3, py: 1.5 }}
             >
-              Next
+              {isLoading ? <CircularProgress size={24} /> : "Next"}
             </Button>
           </Box>
         )}
@@ -431,6 +521,7 @@ export default function SignUpPage() {
                 type="submit"
                 fullWidth
                 variant="contained"
+                size="large"
                 disabled={isLoading}
                 sx={{ py: 1.5 }}
               >
