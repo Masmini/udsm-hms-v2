@@ -21,6 +21,7 @@ import {
   useMediaQuery,
   useTheme,
   Button,
+  CircularProgress,
 } from "@mui/material";
 import {
   Dashboard,
@@ -39,7 +40,7 @@ import {
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { aiInsightsService } from "@/lib/ai-insights";
 
 interface AIRecommendation {
@@ -54,6 +55,7 @@ interface AIRecommendation {
 export default function AdminSidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [open, setOpen] = useState(!isMobile);
@@ -63,6 +65,7 @@ export default function AdminSidebar() {
     []
   );
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [loadingPath, setLoadingPath] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch AI recommendations for the sidebar
@@ -97,6 +100,11 @@ export default function AdminSidebar() {
     fetchRecommendations();
   }, []);
 
+  useEffect(() => {
+    // Reset loading state when pathname changes (navigation complete)
+    setLoadingPath(null);
+  }, [pathname]);
+
   const handleDrawerToggle = () => {
     setOpen(!open);
   };
@@ -129,6 +137,13 @@ export default function AdminSidebar() {
       }
     } catch (error) {
       console.error("Error sending feedback:", error);
+    }
+  };
+
+  const handleNavigation = (path: string) => {
+    if (path !== pathname) {
+      setLoadingPath(path); // Set loading state for the clicked path
+      router.push(path); // Trigger navigation
     }
   };
 
@@ -184,24 +199,32 @@ export default function AdminSidebar() {
           <Box key={item.text}>
             <ListItem disablePadding>
               <ListItemButton
-                component={Link}
-                href={item.path || "#"}
-                selected={pathname === item.path}
-                onClick={
+                onClick={() =>
                   item.subItems
                     ? item.text === "Hubs"
-                      ? handleHubsToggle
-                      : handleUsersToggle
-                    : undefined
+                      ? handleHubsToggle()
+                      : handleUsersToggle()
+                    : handleNavigation(item.path || "#")
                 }
+                selected={pathname === item.path}
+                disabled={loadingPath === item.path}
                 sx={{
                   "&.Mui-selected": {
                     backgroundColor: "primary.light",
                     "&:hover": { backgroundColor: "primary.light" },
                   },
+                  "&.Mui-disabled": {
+                    opacity: 0.6,
+                  },
                 }}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemIcon>
+                  {loadingPath === item.path ? (
+                    <CircularProgress size={24} thickness={4} />
+                  ) : (
+                    item.icon
+                  )}
+                </ListItemIcon>
                 <ListItemText primary={item.text} />
                 {item.subItems && (
                   <>
@@ -231,10 +254,17 @@ export default function AdminSidebar() {
                     <ListItemButton
                       key={subItem.text}
                       sx={{ pl: 4 }}
-                      component={Link}
-                      href={subItem.path}
+                      onClick={() => handleNavigation(subItem.path)}
                       selected={pathname === subItem.path}
+                      disabled={loadingPath === subItem.path}
                     >
+                      <ListItemIcon>
+                        {loadingPath === subItem.path ? (
+                          <CircularProgress size={24} thickness={4} />
+                        ) : (
+                          <Box sx={{ width: 24, height: 24 }} /> // Placeholder to align text
+                        )}
+                      </ListItemIcon>
                       <ListItemText primary={subItem.text} />
                     </ListItemButton>
                   ))}
@@ -257,9 +287,8 @@ export default function AdminSidebar() {
           recommendations
             .filter((rec) => !dismissedIds.has(rec.id))
             .map((rec) => (
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ mb: 2 }} key={rec.id}>
                 <motion.div
-                  key={rec.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
@@ -290,10 +319,14 @@ export default function AdminSidebar() {
                       <Button
                         size="small"
                         variant="outlined"
-                        component={Link}
-                        href={rec.actionUrl}
+                        onClick={() => handleNavigation(rec.actionUrl!)}
+                        disabled={loadingPath === rec.actionUrl}
                       >
-                        View
+                        {loadingPath === rec.actionUrl ? (
+                          <CircularProgress size={20} thickness={4} />
+                        ) : (
+                          "View"
+                        )}
                       </Button>
                     )}
                     <IconButton
